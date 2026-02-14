@@ -1,0 +1,171 @@
+/*
+===============================================================================
+DDL Script: Create Gold Views
+===============================================================================
+Script Purpose:
+    This script creates views for the Gold layer in the data warehouse. 
+    The Gold layer represents the final dimension and fact tables (Star Schema)
+
+    Each view performs transformations and combines data from the Silver layer 
+    to produce a clean, enriched, and business-ready dataset.
+
+Usage:
+    - These views can be queried directly for analytics and reporting.
+===============================================================================
+*/
+
+
+-- =============================================================================
+-- Create Fact Table: gold.fact_order_items
+-- =============================================================================
+
+
+IF OBJECT_ID('gold.fact_order_items', 'V') IS NOT NULL
+    DROP VIEW gold.fact_order_items;
+GO
+
+CREATE VIEW gold.fact_order_items AS
+WITH payment_agg AS (
+    SELECT
+        order_id,
+        SUM(payment_value) AS payment_value
+    FROM silver.olist_order_payments_dataset
+    GROUP BY order_id
+),
+review_agg AS (
+    SELECT
+        order_id,
+        AVG(review_score) AS review_score
+    FROM silver.olist_order_reviews_dataset
+    GROUP BY order_id
+)
+
+SELECT
+    oi.order_id,
+    oi.order_item_id,
+    o.customer_id,
+    oi.product_id,
+    oi.seller_id,
+
+    CONVERT(INT, FORMAT(o.order_purchase_timestamp, 'yyyyMMdd')) AS purchase_date_key,
+
+    o.order_status,
+
+    oi.price,
+    oi.freight_value,
+    (oi.price + oi.freight_value) AS total_item_value,
+
+    pa.payment_value,
+
+    DATEDIFF(DAY, o.order_purchase_timestamp, o.order_approved_at)
+        AS approval_days,
+
+    DATEDIFF(DAY, o.order_purchase_timestamp, o.order_delivered_customer_date)
+        AS delivery_days,
+
+    DATEDIFF(DAY, o.order_estimated_delivery_date,
+             o.order_delivered_customer_date)
+        AS estimated_delivery_days,
+
+    ra.review_score,
+
+    o.carrier_before_approval_flag,
+    o.delivered_before_carrier_flag
+
+FROM silver.olist_order_items_dataset oi
+JOIN silver.olist_orders_dataset o
+    ON oi.order_id = o.order_id
+LEFT JOIN payment_agg pa
+    ON oi.order_id = pa.order_id
+LEFT JOIN review_agg ra
+    ON oi.order_id = ra.order_id;
+GO
+
+
+-- =============================================================================
+-- Create Dimension: gold.dim_customer
+-- =============================================================================
+
+
+IF OBJECT_ID('gold.dim_customer', 'V') IS NOT NULL
+    DROP VIEW gold.dim_customer;
+GO
+
+CREATE VIEW gold.dim_customer AS
+SELECT
+    c.customer_id,
+    c.customer_unique_id,
+    c.customer_city,
+    c.customer_state,
+    c.customer_zip_code_prefix,
+    g.geolocation_lat AS customer_lat,
+    g.geolocation_lng AS customer_lng
+FROM silver.olist_customers_dataset c
+LEFT JOIN silver.olist_geolocation_dataset g
+    ON c.customer_zip_code_prefix = g.geolocation_zip_code_prefix;
+GO
+
+
+-- =============================================================================
+-- Create Dimension: gold.dim_product
+-- =============================================================================
+
+
+IF OBJECT_ID('gold.dim_product', 'V') IS NOT NULL
+    DROP VIEW gold.dim_product;
+GO
+
+CREATE VIEW gold.dim_product AS
+SELECT
+    p.product_id,
+    p.product_category_name,
+    t.product_category_name_english,
+    p.product_weight_g,
+    p.product_length_cm,
+    p.product_height_cm,
+    p.product_width_cm
+FROM silver.olist_products_dataset p
+LEFT JOIN silver.product_category_name_translation t
+    ON p.product_category_name = t.product_category_name;
+GO
+
+
+-- =============================================================================
+-- Create Dimension: gold.dim_seller
+-- =============================================================================
+
+IF OBJECT_ID('gold.dim_seller', 'V') IS NOT NULL
+    DROP VIEW gold.dim_seller;
+GO
+
+CREATE VIEW gold.dim_seller AS
+SELECT
+    s.seller_id,
+    s.seller_city,
+    s.seller_state,
+    s.seller_zip_code_prefix,
+    g.geolocation_lat AS seller_lat,
+    g.geolocation_lng AS seller_lng
+FROM silver.olist_sellers_dataset s
+LEFT JOIN silver.olist_geolocation_dataset g
+    ON s.seller_zip_code_prefix = g.geolocation_zip_code_prefix;
+GO
+
+
+-- =============================================================================
+-- Create Dimension: gold.dim_date
+-- =============================================================================
+
+IF OBJECT_ID('gold.dim_date', 'V') IS NOT NULL
+    DROP VIEW gold.dim_date;
+GO
+
+CREATE VIEW gold.dim_date AS
+SELECT DISTINCT
+    CAST(order_purchase_timestamp AS DATE) AS full_date,
+    YEAR(order_purchase_timestamp) AS year,
+    MONTH(order_purchase_timestamp) AS month,
+    DATENAME(MONTH, order_purchase_timestamp) AS month_name,
+    DATEPART(QUARTER, order_purchase_timestamp) AS quarter
+FROM silver.olist_orders_dataset;
+GO
