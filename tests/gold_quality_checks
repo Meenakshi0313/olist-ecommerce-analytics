@@ -13,76 +13,76 @@ Purpose:
         - Date-related sanity using surrogate keys and day calculations
 
 Tables/Views Covered:
-    - gold.dim_customers
-    - gold.dim_products
-    - gold.dim_sellers
+    - gold.dim_customer
+    - gold.dim_product
+    - gold.dim_seller
     - gold.dim_date
     - gold.fact_order_items
 ==========================================================
 */
 
 ------------------------------------------------------------
--- dim_customers
+-- dim_customer
 ------------------------------------------------------------
 
 -- Row count
 SELECT COUNT(*) AS dim_customer_row_count
-FROM gold.dim_customers;
+FROM gold.dim_customer;
 
 -- Check for NULLs in primary key
 SELECT COUNT(*) AS null_customer_id
-FROM gold.dim_customers
+FROM gold.dim_customer
 WHERE customer_id IS NULL;
 
 -- Check for duplicates in primary key
 SELECT customer_id, COUNT(*) AS cnt
-FROM gold.dim_customers
+FROM gold.dim_customer
 GROUP BY customer_id
 HAVING COUNT(*) > 1;
 
 ------------------------------------------------------------
---  dim_products
+--  dim_product
 ------------------------------------------------------------
 
 -- Row count
 SELECT COUNT(*) AS dim_product_row_count
-FROM gold.dim_products;
+FROM gold.dim_product;
 
 -- Check for NULLs in primary key
 SELECT COUNT(*) AS null_product_id
-FROM gold.dim_products
+FROM gold.dim_product
 WHERE product_id IS NULL;
 
 -- Check for duplicates in primary key
 SELECT product_id, COUNT(*) AS cnt
-FROM gold.dim_products
+FROM gold.dim_product
 GROUP BY product_id
 HAVING COUNT(*) > 1;
 
 -- Check numeric columns for negative values
 SELECT *
-FROM gold.dim_products
+FROM gold.dim_product
 WHERE product_weight_g < 0
    OR product_length_cm < 0
    OR product_height_cm < 0
    OR product_width_cm < 0;
 
 ------------------------------------------------------------
---  dim_sellers
+--  dim_seller
 ------------------------------------------------------------
 
 -- Row count
 SELECT COUNT(*) AS dim_seller_row_count
-FROM gold.dim_sellers;
+FROM gold.dim_seller;
 
 -- Check for NULLs in primary key
 SELECT COUNT(*) AS null_seller_id
-FROM gold.dim_sellers
+FROM gold.dim_seller
 WHERE seller_id IS NULL;
 
 -- Check for duplicates in primary key
 SELECT seller_id, COUNT(*) AS cnt
-FROM gold.dim_sellers
+FROM gold.dim_seller
 GROUP BY seller_id
 HAVING COUNT(*) > 1;
 
@@ -160,21 +160,21 @@ WHERE carrier_before_approval_flag NOT IN (0,1)
 -- Customers exist in dimension
 SELECT f.customer_id
 FROM gold.fact_order_items f
-LEFT JOIN gold.dim_customers c
+LEFT JOIN gold.dim_customer c
     ON f.customer_id = c.customer_id
 WHERE c.customer_id IS NULL;
 
 -- Products exist in dimension
 SELECT f.product_id
 FROM gold.fact_order_items f
-LEFT JOIN gold.dim_products p
+LEFT JOIN gold.dim_product p
     ON f.product_id = p.product_id
 WHERE p.product_id IS NULL;
 
 -- Sellers exist in dimension
 SELECT f.seller_id
 FROM gold.fact_order_items f
-LEFT JOIN gold.dim_sellers s
+LEFT JOIN gold.dim_seller s
     ON f.seller_id = s.seller_id
 WHERE s.seller_id IS NULL;
 
